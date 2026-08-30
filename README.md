@@ -8,6 +8,8 @@
   </h1>
 </div>
 
+> ⚠️ **This is a personal fork.** Upstream is **[epilande/ccmux](https://github.com/epilande/ccmux)**. All credit for the project, design, and core implementation goes to the original author. This fork exists only to carry a small set of local TUI tweaks that I haven't upstreamed. See **[FORK.md](./FORK.md)** for what changed and why. If you want ccmux, install upstream — don't rely on this mirror for anything other than the local changes described there.
+
 <p align="center">
   <strong>Run all your AI coding agents (Claude Code, Codex, Cursor, ...) in tmux: jump to the one that needs you, spawn them into worktrees, and hand work between them</strong>
 </p>
