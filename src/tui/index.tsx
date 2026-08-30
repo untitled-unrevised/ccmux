@@ -17,7 +17,7 @@ import type {
 import { applyTheme } from "./theme";
 import type { GroupBy } from "./utils/grouping";
 import { PERF_ENABLED } from "./utils/perf";
-import { findRestorePane, selectPane } from "./utils/tmux";
+import { findRestorePane, refreshClient, selectPane } from "./utils/tmux";
 import { markStartup } from "../lib/startup-timing";
 
 interface TUIOptions {
@@ -50,6 +50,24 @@ const CAPABILITY_QUIET_MS = 250;
 /** Hard ceiling: if probe replies never settle (terminal dropped them),
  * restore focus anyway so we don't leave the user stranded in the sidebar. */
 const CAPABILITY_HARD_CAP_MS = 5000;
+
+/**
+ * A persistent sidebar is drawn beside a real application pane. On VTE, an
+ * alternate-screen transition from that narrow pane can leave pixels from the
+ * pre-split full-width frame visible until tmux next repaints the client.
+ *
+ * Sidebars have no scrollback to preserve when they exit (the pane is killed),
+ * so they run on their main screen. The two client redraws cover both the
+ * initial OpenTUI frame and the delayed capability-probe frame without making
+ * the long-lived renderer redraw continuously.
+ */
+function repairSidebarClientFrame(): void {
+  for (const delay of [100, 350]) {
+    setTimeout(() => {
+      void refreshClient();
+    }, delay);
+  }
+}
 
 /**
  * When the sidebar spawns into an unfocused pane (via `--toggle` or the
@@ -89,6 +107,13 @@ function arrangeSidebarFocusDance(
 export async function launchTUI(options: TUIOptions = {}): Promise<void> {
   markStartup("render_start");
 
+  // Alternate-screen mode is correct for the full picker, but a sidebar is a
+  // persistent tmux neighbour. Keeping it on the pane's main screen prevents
+  // a VTE stale-frame bleed into the adjacent agent pane. OpenTUI exposes this
+  // per-process choice through its documented environment switch; every
+  // sidebar is its own process, so this cannot change a picker or an agent.
+  if (options.sidebar) process.env.OTUI_USE_ALTERNATE_SCREEN = "false";
+
   // Resolve the theme into the live singleton before any component renders.
   // Launch-time only: no in-TUI toggle, no reactivity.
   applyTheme(options.theme);
@@ -112,6 +137,7 @@ export async function launchTUI(options: TUIOptions = {}): Promise<void> {
   }
 
   const renderer = await createCliRenderer(config);
+  if (options.sidebar) repairSidebarClientFrame();
   if (restoreTarget) {
     arrangeSidebarFocusDance(renderer, restoreTarget);
   }

@@ -2376,6 +2376,10 @@ export function createTUIStore(options: TUIStoreOptions = {}) {
       setState("previewFocused", false);
     },
 
+    togglePreviewFocus() {
+      setState("previewFocused", (focused) => !focused);
+    },
+
     toggleHelp() {
       setState("showHelp", (show) => !show);
     },

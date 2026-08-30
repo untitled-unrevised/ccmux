@@ -21,7 +21,7 @@ const leftGroups = (reviewable?: boolean): Group[] => [
   {
     section: "Actions",
     items: [
-      { key: "Enter", desc: "Switch to session" },
+      { key: "Enter", desc: "Focus selected preview" },
       { key: "m", desc: "Row menu (j/k, Enter)" },
       { key: "y", desc: "Copy last response" },
       { key: "n", desc: "New session" },
@@ -66,7 +66,8 @@ const rightGroups = (sidebar?: boolean): Group[] => [
       { key: "P", desc: "Toggle preview" },
       { key: "Ctrl+D/U", desc: "Scroll preview" },
       { key: "Alt+H/L", desc: "Resize preview" },
-      { key: "Tab", desc: "Focus preview" },
+      { key: "Tab", desc: "Focus preview (also Enter)" },
+      { key: "Ctrl+G", desc: "Focus/unfocus preview (toggle)" },
     ],
   },
   {

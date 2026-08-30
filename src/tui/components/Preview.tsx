@@ -223,6 +223,8 @@ interface PreviewProps {
   iconStyle?: IconStyle;
   width: number;
   focused?: boolean;
+  /** Focus mode turns the preview into the whole ccmux work surface. */
+  immersive?: boolean;
   refreshKey?: number;
   searchQuery?: string;
   /**
@@ -436,7 +438,7 @@ export const Preview: Component<PreviewProps> = (props) => {
       flexDirection="column"
       width={`${props.width}%`}
       height="100%"
-      border={["left"]}
+      border={props.immersive ? [] : ["left"]}
       borderStyle="single"
       borderColor={props.focused ? theme.mauve : theme.border}
       paddingLeft={1}

@@ -31,7 +31,7 @@ describe("HelpOverlay", () => {
   it("renders Actions section", async () => {
     const frame = await renderHelp();
     expect(frame).toContain("Actions");
-    expect(frame).toContain("Switch to session");
+    expect(frame).toContain("Focus selected preview");
     expect(frame).toContain("Enter");
   });
 

@@ -9,6 +9,8 @@ interface FooterProps {
   confirmMode?: boolean;
   helpMode?: boolean;
   previewFocused?: boolean;
+  /** Preview is visible, so Enter opens it for interactive work. */
+  previewVisible?: boolean;
   persistent?: boolean;
   groupBy?: GroupBy;
   newSessionMode?: boolean;
@@ -132,6 +134,7 @@ export function copyDialogHintSegments(): { key: string; gloss: string }[] {
 /** The default (no-mode) hints, in display order. */
 export function defaultHints(props: {
   persistent?: boolean;
+  previewVisible?: boolean;
   groupBy?: GroupBy;
   reviewable?: boolean;
 }): HintSegment[] {
@@ -152,7 +155,10 @@ export function defaultHints(props: {
     // falls out of display order rather than being stated, so a reshuffle of
     // this array is a reshuffle of the drop order too.
     { text: "j/k nav", rank: 3 },
-    { text: `enter ${props.persistent ? "switch" : "select"}`, rank: 4 },
+    {
+      text: `enter ${props.previewVisible ? "focus preview" : props.persistent ? "switch" : "select"}`,
+      rank: 4,
+    },
     { text: "n new", rank: 3 },
     { text: "/ search", rank: 2 },
     { text: `b group:${props.groupBy ?? DEFAULT_GROUP_BY}`, rank: 1 },
@@ -199,7 +205,9 @@ export const Footer: Component<FooterProps> = (props) => {
           <text fg={theme.overlay}>? or Esc close</text>
         </Match>
         <Match when={props.previewFocused}>
-          <text fg={theme.overlay}>tab/esc exit focus · keys sent to pane</text>
+          <text fg={theme.overlay}>
+            ctrl+g return to list · keys sent to pane
+          </text>
         </Match>
         <Match when={props.confirmMode}>
           <text fg={theme.overlay}>y confirm · n/Esc cancel</text>

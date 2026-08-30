@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import {
   parseLaunchPane,
   parseRestoreCandidate,
@@ -6,6 +6,8 @@ import {
   agentAttachWindowName,
   isSafeAgentShortId,
   AGENTS_WINDOW_NAME,
+  keyToTmuxArgs,
+  refreshClient,
 } from "./tmux";
 import { PANE_FIELD_SEP } from "../../lib/tmux-format";
 
@@ -162,10 +164,7 @@ describe("parseLaunchPane", () => {
   });
 
   it("returns the active pane for a popup picker, which is not a pane", () => {
-    const output = [
-      row("%1", "zsh", "0"),
-      row("%2", "nvim", "1"),
-    ].join("\n");
+    const output = [row("%1", "zsh", "0"), row("%2", "nvim", "1")].join("\n");
     expect(parseLaunchPane(output, null)).toBe("%2");
   });
 
@@ -173,10 +172,7 @@ describe("parseLaunchPane", () => {
     // The inline picker vacates its pane on spawn, so that pane is exactly
     // where the split belongs. Excluding it halves the neighbour instead —
     // someone's editor — which is what shipped before this was surfaced.
-    const output = [
-      row("%1", "nvim", "0"),
-      row("%2", "bun", "1"),
-    ].join("\n");
+    const output = [row("%1", "nvim", "0"), row("%2", "bun", "1")].join("\n");
     expect(parseLaunchPane(output, "%2")).toBe("%2");
   });
 
@@ -187,10 +183,9 @@ describe("parseLaunchPane", () => {
   });
 
   it("still skips a titled persistent picker, which does not vacate", () => {
-    const output = [
-      row("%1", "zsh", "0"),
-      row("%2", "ccmux-picker", "1"),
-    ].join("\n");
+    const output = [row("%1", "zsh", "0"), row("%2", "ccmux-picker", "1")].join(
+      "\n",
+    );
     expect(parseLaunchPane(output, "%2")).toBe("%1");
   });
 
@@ -210,5 +205,45 @@ describe("parseLaunchPane", () => {
 
   it("returns null on empty output", () => {
     expect(parseLaunchPane("", null)).toBe(null);
+  });
+});
+
+describe("keyToTmuxArgs", () => {
+  it("preserves the agent control keys used from a focused preview", () => {
+    expect(keyToTmuxArgs({ name: "escape" })).toEqual(["Escape"]);
+    expect(keyToTmuxArgs({ name: "tab" })).toEqual(["Tab"]);
+    expect(keyToTmuxArgs({ name: "backtab" })).toEqual(["BTab"]);
+    expect(keyToTmuxArgs({ name: "tab", ctrl: true })).toEqual(["C-Tab"]);
+  });
+});
+
+describe("refreshClient", () => {
+  const originalSpawn = Bun.spawn;
+
+  afterEach(() => {
+    Bun.spawn = originalSpawn;
+  });
+
+  it("requests a full tmux repaint rather than a status-only refresh", async () => {
+    const calls: string[][] = [];
+    Bun.spawn = ((argv: string[]) => {
+      calls.push(argv);
+      return {
+        exited: Promise.resolve(0),
+      };
+    }) as unknown as typeof Bun.spawn;
+
+    expect(await refreshClient()).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("refresh-client");
+    expect(calls[0]).not.toContain("-S");
+  });
+
+  it("fails quietly when tmux cannot be started", async () => {
+    Bun.spawn = (() => {
+      throw new Error("tmux unavailable");
+    }) as unknown as typeof Bun.spawn;
+
+    expect(await refreshClient()).toBe(false);
   });
 });

@@ -620,7 +620,7 @@ The working directory is derived, not typed: a session row uses that session's d
 <details>
 <summary><strong>Preview focus mode</strong></summary>
 
-When preview is focused (<kbd>Tab</kbd>), keystrokes are forwarded to the tmux pane. These keys still work:
+With the preview visible, <kbd>Enter</kbd> (or <kbd>Tab</kbd>) focuses it in place. Keystrokes are then forwarded to the selected pane; <kbd>Ctrl+G</kbd> returns to the session list. These picker keys still work:
 
 | Action            | Key                                   |
 | :---------------- | :------------------------------------ |

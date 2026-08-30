@@ -36,7 +36,10 @@ export function ccmuxPortEnvPrefix(): string {
 
 /** Shell command for spawning a sidebar pane (used by split-window and auto-open hook). */
 export function sidebarSpawnCmd(delaySeconds: number): string {
-  return `sleep ${delaySeconds.toFixed(2)} && exec ${ccmuxPortEnvPrefix()}ccmux sidebar`;
+  // This must be in the spawned process environment, before `ccmux` imports
+  // OpenTUI. Setting it after the command starts is too late: the renderer
+  // resolves its screen mode during module initialization.
+  return `sleep ${delaySeconds.toFixed(2)} && exec ${ccmuxPortEnvPrefix() || "env "}OTUI_USE_ALTERNATE_SCREEN=false ccmux sidebar`;
 }
 
 /** Base pty-settle delay before the sidebar process boots (seconds). */
@@ -140,6 +143,10 @@ export function createSidebarCommand(): Command {
             tmuxArgv("select-pane", "-t", selfPane, "-T", SIDEBAR_PANE_TITLE),
           );
         }
+
+        // Direct `ccmux sidebar` launches do not go through sidebarSpawnCmd,
+        // so establish the same mode before loading the lazy TUI module.
+        process.env.OTUI_USE_ALTERNATE_SCREEN = "false";
 
         // The bin/ccmux launcher cds to the project root for bun module
         // resolution. Restore the caller's cwd so tmux reports the correct

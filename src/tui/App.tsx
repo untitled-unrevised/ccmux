@@ -270,6 +270,7 @@ export function App(props: AppProps) {
   function selectPane(pane: string) {
     if (!ensureSameServer()) return;
     notifyActivePane(pane);
+
     if (props.persistent || props.sidebar) {
       flashPane(pane);
     } else {
@@ -292,6 +293,24 @@ export function App(props: AppProps) {
       return;
     }
     activateSession(item.filteredSession.session);
+  }
+
+  /**
+   * In the picker-first workflow, Enter opens the selected live pane under
+   * ccmux's own preview rather than replacing the picker with a tmux client.
+   * Once focused, normal keys (including Enter) reach the pane; Ctrl-G is the
+   * deliberate way back to the session list.
+   */
+  function focusSelectedPreview(): boolean {
+    if (
+      !store.state.showPreview ||
+      store.selectedGroupHeader() ||
+      !store.selectedSession()?.tmuxPane
+    ) {
+      return false;
+    }
+    store.actions.enterPreviewFocus();
+    return true;
   }
 
   /**
@@ -1041,7 +1060,6 @@ export function App(props: AppProps) {
     return (
       store.state.showHelp ||
       store.state.confirmMode ||
-      store.state.previewFocused ||
       store.state.newSession !== null ||
       store.state.worktrees !== null ||
       store.state.sourcePicker !== null ||
@@ -3577,9 +3595,9 @@ export function App(props: AppProps) {
         return;
       }
       if (key === "return" || key === "enter") {
-        const session = store.selectedSession();
-        if (session?.tmuxPane) {
-          selectPane(session.tmuxPane);
+        if (!focusSelectedPreview()) {
+          const session = store.selectedSession();
+          if (session?.tmuxPane) selectPane(session.tmuxPane);
         }
         event.preventDefault();
         return;
@@ -3587,9 +3605,14 @@ export function App(props: AppProps) {
       return;
     }
 
-    // Preview focus mode: forward keys to tmux pane
+    // Preview focus mode sends keystrokes to the selected agent pane.  Escape
+    // and Tab are agent controls (cancel and mode switching), so consuming
+    // them here makes the preview unusable as an interactive agent surface.
+    // Ctrl-G is the way back out, and the same key re-enters from the list —
+    // one key, one meaning, in both views, so an A/B between the docked split
+    // and the immersive pane is a single keystroke either way.
     if (store.state.previewFocused) {
-      if (key === "tab" || key === "escape") {
+      if (event.ctrl && key === "g") {
         store.actions.exitPreviewFocus();
       } else if (event.ctrl && (key === "n" || key === "p")) {
         store.actions.moveSelection(key === "n" ? 1 : -1);
@@ -3619,6 +3642,18 @@ export function App(props: AppProps) {
     // Clear pending g/z on any non-matching key
     if (key !== "g" && pendingG) {
       pendingG = false;
+    }
+
+    // Ctrl-G toggles preview focus from the list side. The focused side has
+    // its own Ctrl-G exit above; this is the mirror image, so the same key
+    // walks A/B between the two views. Same guard as `focusSelectedPreview`:
+    // a real pane must be selected, and the preview must be showing.
+    if (event.ctrl && key === "g") {
+      if (store.state.showPreview && store.selectedSession()?.tmuxPane) {
+        store.actions.togglePreviewFocus();
+        event.preventDefault();
+      }
+      return;
     }
     if (pendingZ) {
       pendingZ = false;
@@ -3711,8 +3746,10 @@ export function App(props: AppProps) {
 
       case "return":
       case "enter": {
-        const item = store.selectedFlatItem();
-        if (item) activateItem(item);
+        if (!focusSelectedPreview()) {
+          const item = store.selectedFlatItem();
+          if (item) activateItem(item);
+        }
         event.preventDefault();
         break;
       }
@@ -3983,32 +4020,31 @@ export function App(props: AppProps) {
     >
       <box flexDirection="column" width="100%" height="100%">
         <Header
-          sessionCount={store.filteredSessions().length}
-          totalCount={
-            store.state.hideIdle ||
-            (store.state.searchMode && store.state.searchQuery)
-              ? store.sortedSessions().length
-              : undefined
-          }
-          hideIdle={store.state.hideIdle}
-          connectionState={store.state.connectionState}
-          daemonDegraded={store.state.daemonHealth.degraded}
-          dimmed={store.state.previewFocused}
-          invokeInFlight={store.invocationInFlightCount()}
-        />
-
-        <Show when={store.state.searchMode}>
-          <SearchInput
-            value={store.state.searchQuery}
-            onChange={(value) => store.actions.setSearchQuery(value)}
-            onSubmit={() => {
-              const session = store.selectedSession();
-              if (session?.tmuxPane) {
-                selectPane(session.tmuxPane);
-              }
-            }}
+            sessionCount={store.filteredSessions().length}
+            totalCount={
+              store.state.hideIdle ||
+              (store.state.searchMode && store.state.searchQuery)
+                ? store.sortedSessions().length
+                : undefined
+            }
+            hideIdle={store.state.hideIdle}
+            connectionState={store.state.connectionState}
+            daemonDegraded={store.state.daemonHealth.degraded}
+            invokeInFlight={store.invocationInFlightCount()}
           />
-        </Show>
+
+          <Show when={store.state.searchMode}>
+            <SearchInput
+              value={store.state.searchQuery}
+              onChange={(value) => store.actions.setSearchQuery(value)}
+              onSubmit={() => {
+                const session = store.selectedSession();
+                if (session?.tmuxPane) {
+                  selectPane(session.tmuxPane);
+                }
+              }}
+            />
+          </Show>
 
         {/* The mode's only chrome: one line saying whose response is in hand
             and what the mode wants aimed. It sits where the search input
@@ -4037,24 +4073,23 @@ export function App(props: AppProps) {
 
         <box flexDirection="row" flexGrow={1}>
           <SessionList
-            items={store.flatItems()}
-            selectedIndex={store.selectedIndex()}
-            iconStyle={store.state.iconStyle}
-            showPreview={store.state.showPreview}
-            previewWidth={store.state.previewWidth}
-            activePaneId={store.state.activePaneId}
-            activeSessionId={store.state.activeSessionId}
-            columns={store.state.columns}
-            breakpoints={store.state.breakpoints}
-            dimmed={store.state.previewFocused}
-            sidebar={props.sidebar}
-            promptDisplay={store.state.promptDisplay}
-            loading={!initialDataReceived()}
-            socketError={store.state.tmuxSocketError}
-            onActivate={handleRowActivate}
-            onContextMenu={handleRowContextMenu}
-            onRowAnchor={(resolve) => (rowAnchor = resolve)}
-          />
+              items={store.flatItems()}
+              selectedIndex={store.selectedIndex()}
+              iconStyle={store.state.iconStyle}
+              showPreview={store.state.showPreview}
+              previewWidth={store.state.previewWidth}
+              activePaneId={store.state.activePaneId}
+              activeSessionId={store.state.activeSessionId}
+              columns={store.state.columns}
+              breakpoints={store.state.breakpoints}
+              sidebar={props.sidebar}
+              promptDisplay={store.state.promptDisplay}
+              loading={!initialDataReceived()}
+              socketError={store.state.tmuxSocketError}
+              onActivate={handleRowActivate}
+              onContextMenu={handleRowContextMenu}
+              onRowAnchor={(resolve) => (rowAnchor = resolve)}
+            />
           <Show when={!props.sidebar && store.state.showPreview}>
             <Show
               when={store.selectedGroupHeader()}
@@ -4091,6 +4126,7 @@ export function App(props: AppProps) {
             confirmMode={store.state.confirmMode}
             helpMode={store.state.showHelp}
             previewFocused={store.state.previewFocused}
+            previewVisible={store.state.showPreview}
             persistent={props.persistent}
             groupBy={store.state.groupBy}
             newSessionMode={store.state.newSession !== null}

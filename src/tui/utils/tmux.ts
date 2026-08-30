@@ -53,6 +53,25 @@ export async function switchToPane(target: string): Promise<boolean> {
   }
 }
 
+/**
+ * Ask tmux to repaint the complete attached client frame.
+ *
+ * This is intentionally distinct from `refresh-client -S`, which updates only
+ * tmux's status line. A sidebar starts in a new adjacent pane, so a full
+ * repaint is needed to clear a VTE frame that predates the split.
+ */
+export async function refreshClient(): Promise<boolean> {
+  try {
+    const proc = Bun.spawn(tmuxArgv("refresh-client"), {
+      stdout: "ignore",
+      stderr: "ignore",
+    });
+    return (await proc.exited) === 0;
+  } catch {
+    return false;
+  }
+}
+
 const SPECIAL_KEY_MAP: Record<string, string> = {
   return: "Enter",
   enter: "Enter",
@@ -66,8 +85,27 @@ const SPECIAL_KEY_MAP: Record<string, string> = {
   home: "Home",
   end: "End",
   tab: "Tab",
+  backtab: "BTab",
   escape: "Escape",
 };
+
+/** Translate an OpenTUI keyboard event into tmux's send-keys arguments. */
+export function keyToTmuxArgs(event: {
+  name: string;
+  ctrl?: boolean;
+}): string[] | null {
+  const { name, ctrl } = event;
+
+  if (ctrl && name.length === 1) return [`C-${name}`];
+  // Ctrl-Tab is distinct when the terminal reports it as such. Preserve it
+  // instead of silently downgrading it to a plain Tab in the focused preview.
+  if (ctrl && name === "tab") return ["C-Tab"];
+
+  const mapped = SPECIAL_KEY_MAP[name];
+  if (mapped) return [mapped];
+  if (name.length === 1) return ["-l", name];
+  return null;
+}
 
 async function tmuxSendKeys(
   target: string,
@@ -85,22 +123,8 @@ export async function sendKeys(
   event: { name: string; ctrl?: boolean },
 ): Promise<boolean> {
   try {
-    const { name, ctrl } = event;
-
-    if (ctrl && name.length === 1) {
-      return tmuxSendKeys(target, `C-${name}`);
-    }
-
-    const mapped = SPECIAL_KEY_MAP[name];
-    if (mapped) {
-      return tmuxSendKeys(target, mapped);
-    }
-
-    if (name.length === 1) {
-      return tmuxSendKeys(target, "-l", name);
-    }
-
-    return false;
+    const args = keyToTmuxArgs(event);
+    return args ? tmuxSendKeys(target, ...args) : false;
   } catch {
     return false;
   }

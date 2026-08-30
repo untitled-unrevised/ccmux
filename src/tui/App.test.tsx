@@ -1610,6 +1610,38 @@ describe("App pane-switch feedback and server scoping", () => {
     }
   });
 
+  it("Enter focuses the visible preview and forwards later Enter presses to its pane", async () => {
+    const restoreFetch = withServerInfo(null);
+    const { exitSpy, restore: restoreExit } = withExitSpy();
+    try {
+      await renderWithSession({ initialPreview: true });
+      setup.mockInput.pressKey("j");
+      await setup.renderOnce();
+      setup.mockInput.pressEnter();
+      await setup.renderOnce();
+
+      expect(squish(setup.captureCharFrame())).toContain(
+        squish("keys sent to pane"),
+      );
+      // Focus mode stays docked: the session list remains beside the
+      // preview, which keeps its normal width instead of going fullscreen.
+      expect(setup.captureCharFrame()).toContain("Sessions");
+      expect(switchToPaneSpy).not.toHaveBeenCalled();
+      expect(exitSpy).not.toHaveBeenCalled();
+
+      sendKeysSpy.mockClear();
+      setup.mockInput.pressEnter();
+      await setup.renderOnce();
+      expect(sendKeysSpy).toHaveBeenCalledWith(
+        "%5",
+        expect.objectContaining({ name: "return" }),
+      );
+    } finally {
+      restoreExit();
+      restoreFetch();
+    }
+  });
+
   it("refuses to target a pane on a different tmux server", async () => {
     const restoreTmux = withTmux("/tmp/consumer-sock,1,0");
     const restoreFetch = withServerInfo("/tmp/daemon-sock"); // differs -> refuse
@@ -1667,6 +1699,56 @@ describe("App pane-switch feedback and server scoping", () => {
       restoreExit();
       restoreFetch();
       restoreTmux();
+    }
+  });
+
+  it("forwards Esc and Tab to an agent preview; Ctrl-G returns to the list", async () => {
+    const restoreFetch = withServerInfo(null);
+    const { restore: restoreExit } = withExitSpy();
+    try {
+      await renderWithSession({ initialPreview: true });
+
+      setup.mockInput.pressKey("j");
+      await setup.renderOnce();
+      setup.mockInput.pressTab();
+      await setup.renderOnce();
+      sendKeysSpy.mockClear();
+
+      setup.mockInput.pressEscape();
+      // Escape is a prefix byte in a terminal stream; let OpenTUI resolve it
+      // before emitting the next Tab, rather than testing Alt-Tab instead.
+      await settle(50);
+      await setup.renderOnce();
+      setup.mockInput.pressTab();
+      await setup.renderOnce();
+      setup.mockInput.pressTab();
+      await setup.renderOnce();
+
+      expect(sendKeysSpy).toHaveBeenNthCalledWith(
+        1,
+        "%5",
+        expect.objectContaining({ name: "escape" }),
+      );
+      expect(sendKeysSpy).toHaveBeenNthCalledWith(
+        2,
+        "%5",
+        expect.objectContaining({ name: "tab" }),
+      );
+      expect(sendKeysSpy).toHaveBeenNthCalledWith(
+        3,
+        "%5",
+        expect.objectContaining({ name: "tab" }),
+      );
+
+      setup.mockInput.pressKey("g", { ctrl: true });
+      await setup.renderOnce();
+      sendKeysSpy.mockClear();
+      setup.mockInput.pressKey("a");
+      await setup.renderOnce();
+      expect(sendKeysSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreExit();
+      restoreFetch();
     }
   });
 

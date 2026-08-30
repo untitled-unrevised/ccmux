@@ -15,6 +15,7 @@ async function renderFooter(props: {
   confirmMode?: boolean;
   helpMode?: boolean;
   previewFocused?: boolean;
+  previewVisible?: boolean;
   persistent?: boolean;
   groupBy?: GroupBy;
   newSessionMode?: boolean;
@@ -30,6 +31,7 @@ async function renderFooter(props: {
         confirmMode={props.confirmMode}
         helpMode={props.helpMode}
         previewFocused={props.previewFocused}
+        previewVisible={props.previewVisible}
         persistent={props.persistent}
         groupBy={props.groupBy}
         newSessionMode={props.newSessionMode}
@@ -73,7 +75,8 @@ describe("Footer", () => {
 
   it("renders preview focused help text", async () => {
     const frame = await renderFooter({ previewFocused: true });
-    expect(frame).toContain("exit focus");
+    expect(frame).toContain("return to list");
+    expect(frame).toContain("ctrl+g");
     expect(frame).toContain("keys sent to pane");
   });
 
@@ -85,6 +88,12 @@ describe("Footer", () => {
   it("shows select label when not persistent", async () => {
     const frame = await renderFooter({ persistent: false });
     expect(frame).toContain("select");
+  });
+
+  it("explains that Enter focuses the visible preview", async () => {
+    const frame = await renderFooter({ previewVisible: true });
+    expect(frame).toContain("focus preview");
+    expect(frame).not.toContain("enter select");
   });
 
   it("shows current groupBy mode", async () => {

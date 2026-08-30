@@ -303,14 +303,16 @@ describe("ccmuxPortEnvPrefix", () => {
   it("bakes the forwarded port into the spawn command", () => {
     withPort("2270", () =>
       expect(sidebarSpawnCmd(0.1)).toBe(
-        "sleep 0.10 && exec env CCMUX_PORT=2270 ccmux sidebar",
+        "sleep 0.10 && exec env CCMUX_PORT=2270 OTUI_USE_ALTERNATE_SCREEN=false ccmux sidebar",
       ),
     );
   });
 
   it("leaves the spawn command bare when no port is forwarded", () => {
     withPort(undefined, () =>
-      expect(sidebarSpawnCmd(0.6)).toBe("sleep 0.60 && exec ccmux sidebar"),
+      expect(sidebarSpawnCmd(0.6)).toBe(
+        "sleep 0.60 && exec env OTUI_USE_ALTERNATE_SCREEN=false ccmux sidebar",
+      ),
     );
   });
 });
